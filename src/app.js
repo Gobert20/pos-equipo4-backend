@@ -6,8 +6,6 @@ const authRoutes = require('./routes/auth');
 const categoryRoutes = require('./routes/categories');
 const clientRoutes = require('./routes/clients');
 const userRoutes = require('./routes/users');
-// 🛠️ AGREGADO: Importar ruta de reportes por buena práctica estructural
-const reportRoutes = require('./routes/reports'); 
 
 // Módulos exigidos por la pauta Cloud
 const rateLimit = require('express-rate-limit');
@@ -40,9 +38,7 @@ const apiLimiter = rateLimit({
     message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente más tarde.' },
     standardHeaders: true,
     legacyHeaders: false,
-    // 🛠️ SOLUCIÓN AL ERR_ERL_KEY_GEN_IPV6: Apagamos la validación estricta de proxy manual
     validate: { xForwardedForHeader: false },
-    // Extraemos limpiamente la IP real del cliente usando la primera IP de la cadena x-forwarded-for
     keyGenerator: (req) => {
         if (req.headers['x-forwarded-for']) {
             return req.headers['x-forwarded-for'].split(',')[0].trim();
@@ -52,14 +48,14 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// 🛠️ 3. INTERCEPTOR ULTRA-COMPATIBLE DE FLUJO (¡ZONA DE RESCATE MODIFICADA!)
+// 🛠️ 3. INTERCEPTOR ULTRA-COMPATIBLE DE FLUJO (¡ZONA DE RESCATE!)
 const userController = require('./controllers/userController');
 const authController = require('./controllers/authController');
 const categoryController = require('./controllers/categoryController');
 const clientController = require('./controllers/clientController');
 const productController = require('./controllers/productController'); 
 const saleController = require('./controllers/saleController'); 
-// 🛠️ AGREGADO: Controlador de reportes integrado en la Zona de Rescate
+// 📊 Controlador de reportes integrado de forma directa
 const reportController = require('./controllers/reportController'); 
 
 app.use((req, res, next) => {
@@ -87,7 +83,7 @@ app.use((req, res, next) => {
         return productController.getAll(req, res);
     }
     
-    // 🛠️ INTERCEPTOR AGREGADO: Rescatar llamadas de reportes y pasarlas al controlador original
+    // 📊 Rescate directo de llamadas de reportes usando el controlador existente
     if (urlLimpia === '/reports/summary' || urlLimpia === '/report/summary') {
         return reportController.getSummary(req, res);
     }
@@ -147,8 +143,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/users', userRoutes);
-// 🛠️ AGREGADO: Registrar el enrutador estándar de reportes
-app.use('/api/reports', reportRoutes); 
 
 // 🔍 Manejador global de rutas no encontradas (404)
 app.use((req, res) => {
@@ -162,7 +156,7 @@ app.use((req, res) => {
             "/api/categories", 
             "/api/clients",    
             "/api/users",
-            "/api/reports/summary" // 🛠️ Agregado al mapa visual de endpoints válidos
+            "/api/reports/summary"
         ]
     });
 });
