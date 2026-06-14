@@ -38,8 +38,15 @@ const apiLimiter = rateLimit({
     message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente más tarde.' },
     standardHeaders: true,
     legacyHeaders: false,
-    // Valida que use la IP real del cliente provista por Render
-    keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
+    // 🛠️ SOLUCIÓN AL ERR_ERL_KEY_GEN_IPV6: Apagamos la validación estricta de proxy manual
+    validate: { xForwardedForHeader: false },
+    // Extraemos limpiamente la IP real del cliente usando la primera IP de la cadena x-forwarded-for
+    keyGenerator: (req) => {
+        if (req.headers['x-forwarded-for']) {
+            return req.headers['x-forwarded-for'].split(',')[0].trim();
+        }
+        return req.ip;
+    }
 });
 app.use('/api/', apiLimiter);
 
@@ -99,7 +106,7 @@ app.use((req, res, next) => {
 // 🩺 4. ENDPOINT: Health Check (Protección Anti-crash)
 app.get('/health', async (req, res) => {
     try {
-        // NOTA: Asegúrate de que esta ruta a tu pool/cliente de pg sea la correcta en tu árbol de carpetas
+        // NOTA: Ruta corregida apuntando de forma segura a tu config/database
         const db = require('./config/database');
         await db.query('SELECT 1;'); 
         res.status(200).json({
