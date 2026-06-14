@@ -6,6 +6,8 @@ const authRoutes = require('./routes/auth');
 const categoryRoutes = require('./routes/categories');
 const clientRoutes = require('./routes/clients');
 const userRoutes = require('./routes/users');
+// 🛠️ AGREGADO: Importar ruta de reportes por buena práctica estructural
+const reportRoutes = require('./routes/reports'); 
 
 // Módulos exigidos por la pauta Cloud
 const rateLimit = require('express-rate-limit');
@@ -50,13 +52,15 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// 🛠️ 3. INTERCEPTOR ULTRA-COMPATIBLE DE FLUJO (¡ZONA DE RESCATE!)
+// 🛠️ 3. INTERCEPTOR ULTRA-COMPATIBLE DE FLUJO (¡ZONA DE RESCATE MODIFICADA!)
 const userController = require('./controllers/userController');
 const authController = require('./controllers/authController');
 const categoryController = require('./controllers/categoryController');
 const clientController = require('./controllers/clientController');
 const productController = require('./controllers/productController'); 
 const saleController = require('./controllers/saleController'); 
+// 🛠️ AGREGADO: Controlador de reportes integrado en la Zona de Rescate
+const reportController = require('./controllers/reportController'); 
 
 app.use((req, res, next) => {
     let urlLimpia = req.url.split('?')[0]; 
@@ -83,6 +87,20 @@ app.use((req, res, next) => {
         return productController.getAll(req, res);
     }
     
+    // 🛠️ INTERCEPTOR AGREGADO: Rescatar llamadas de reportes y pasarlas al controlador original
+    if (urlLimpia === '/reports/summary' || urlLimpia === '/report/summary') {
+        return reportController.getSummary(req, res);
+    }
+    if (urlLimpia === '/reports/sales-by-day') {
+        return reportController.getSalesByDay(req, res);
+    }
+    if (urlLimpia === '/reports/top-products') {
+        return reportController.getTopProducts(req, res);
+    }
+    if (urlLimpia === '/reports/sales-by-payment') {
+        return reportController.getSalesByPayment(req, res);
+    }
+    
     if (urlLimpia === '/sales' || urlLimpia === '/sale') {
         if (req.method === 'POST') {
             return saleController.registrarVentaReal(req, res);
@@ -106,7 +124,6 @@ app.use((req, res, next) => {
 // 🩺 4. ENDPOINT: Health Check (Protección Anti-crash)
 app.get('/health', async (req, res) => {
     try {
-        // NOTA: Ruta corregida apuntando de forma segura a tu config/database
         const db = require('./config/database');
         await db.query('SELECT 1;'); 
         res.status(200).json({
@@ -130,6 +147,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/users', userRoutes);
+// 🛠️ AGREGADO: Registrar el enrutador estándar de reportes
+app.use('/api/reports', reportRoutes); 
 
 // 🔍 Manejador global de rutas no encontradas (404)
 app.use((req, res) => {
@@ -142,7 +161,8 @@ app.use((req, res) => {
             "/api/auth/login",
             "/api/categories", 
             "/api/clients",    
-            "/api/users"       
+            "/api/users",
+            "/api/reports/summary" // 🛠️ Agregado al mapa visual de endpoints válidos
         ]
     });
 });
