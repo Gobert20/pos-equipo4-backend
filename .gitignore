@@ -1,0 +1,8 @@
+# Dependencias locales (Se vuelven a instalar en la nube)
+node_modules/
+
+# Variables de entorno secretas (CONTIENE TUS CLAVES DE AZURE - PROHIBIDO SUBIR)
+.env
+
+# Archivos de subidas locales (Las imágenes del monolito)
+uploads/
