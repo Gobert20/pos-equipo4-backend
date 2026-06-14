@@ -13,12 +13,15 @@ const pinoHttp = require('pino-http');
 
 const app = express();
 
+// 🚀 REQUERIDO PARA CLOUD: Confiar en el proxy de Render para leer IPs reales de usuarios
+app.set('trust proxy', 1);
+
 // 📊 OBSERVABILIDAD: Logger estructurado profesional
 app.use(pinoHttp());
 
-// 🧱 1. CONFIGURACIÓN DE CORS
+// 🧱 1. CONFIGURACIÓN DE CORS LIBERADA PARA PRODUCCIÓN
 app.use(cors({
-    origin: 'http://localhost:3001',
+    origin: true, // Permite peticiones desde tu localhost y desde tu Vercel dinámicamente
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -28,13 +31,15 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 🛡️ 2. SEGURIDAD: Control de abusos DoS por IP
+// 🛡️ 2. SEGURIDAD: Control de abusos DoS por IP corregido para proxies externos
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 150, 
     message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente más tarde.' },
     standardHeaders: true,
     legacyHeaders: false,
+    // Valida que use la IP real del cliente provista por Render
+    keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
 });
 app.use('/api/', apiLimiter);
 
@@ -47,37 +52,30 @@ const productController = require('./controllers/productController');
 const saleController = require('./controllers/saleController'); 
 
 app.use((req, res, next) => {
-    // Normalizamos la URL removiendo parámetros query y quitando el prefijo /api si viene incluido
     let urlLimpia = req.url.split('?')[0]; 
     if (urlLimpia.startsWith('/api')) {
         urlLimpia = urlLimpia.replace('/api', '');
     }
     
-    // Fallbacks de rescate para Usuarios
     if (urlLimpia === '/users' || urlLimpia === '/users/data' || urlLimpia === '/api/users-mock') {
         return userController.getAll(req, res);
     }
-    // Fallbacks de rescate para Autenticación
     if (urlLimpia === '/auth/login' || urlLimpia === '/login') {
         return authController.login(req, res);
     }
     if (urlLimpia === '/auth/me' || urlLimpia === '/me') {
         return authController.me(req, res);
     }
-    // Fallbacks de rescate para Categorías
     if (urlLimpia === '/categories' || urlLimpia === '/category') {
         return categoryController.getAll(req, res);
     }
-    // Fallbacks de rescate para Clientes
     if (urlLimpia === '/clients' || urlLimpia === '/client') {
         return clientController.getAll(req, res);
     }
-    // Fallbacks de rescate para Productos / Inventario Cloud
     if (urlLimpia === '/products' || urlLimpia === '/product') {
         return productController.getAll(req, res);
     }
     
-    // 🛒 FALLBACK DE RESCATE: Captura de Ventas del POS e Historial General
     if (urlLimpia === '/sales' || urlLimpia === '/sale') {
         if (req.method === 'POST') {
             return saleController.registrarVentaReal(req, res);
@@ -89,7 +87,6 @@ app.use((req, res, next) => {
         return saleController.getAllSales(req, res);
     }
 
-    // ⚡ FALLBACK DE RESCATE: Desglose dinámico (ej: /sales/3 o /api/sales/3)
     const partesUrl = urlLimpia.split('/'); 
     if (partesUrl[1] === 'sales' && partesUrl[2] && !isNaN(partesUrl[2])) {
         req.params = { id: partesUrl[2] }; 
@@ -99,9 +96,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// 🩺 4. ENDPOINT: Health Check
+// 🩺 4. ENDPOINT: Health Check (Protección Anti-crash)
 app.get('/health', async (req, res) => {
     try {
+        // NOTA: Asegúrate de que esta ruta a tu pool/cliente de pg sea la correcta en tu árbol de carpetas
         const db = require('./config/database');
         await db.query('SELECT 1;'); 
         res.status(200).json({
