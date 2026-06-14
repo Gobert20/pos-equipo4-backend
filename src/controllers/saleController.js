@@ -1,4 +1,4 @@
-const pool = require('../config/database');
+const { pool } = require('../config/database');
 
 /**
  * 🛒 REGISTRAR UNA NUEVA VENTA Y DESCONTAR STOCK
@@ -17,8 +17,8 @@ const registrarVentaReal = async (req, res) => {
     // 1. Calcular Totales (Con el IVA del 19% chileno)
     let calculadoSubtotal = 0;
     productos.forEach(p => {
-      const precio = Number(p.precio_venta || 0);
-      const cant = Number(p.cantidadActiva || 1);
+      const precio = Number(p.precio_venta || p.precio || 0);
+      const cant = Number(p.cantidadActiva || p.cantidad || 1);
       calculadoSubtotal += (precio * cant);
     });
 
@@ -45,8 +45,8 @@ const registrarVentaReal = async (req, res) => {
     // 3. Registrar el desglose y DESCONTAR EL STOCK de Azure
     for (const prod of productos) {
       const idProd = prod.id;
-      const cant = Number(prod.cantidadActiva);
-      const precioUnit = Number(prod.precio_venta);
+      const cant = Number(prod.cantidadActiva || prod.cantidad || 1);
+      const precioUnit = Number(prod.precio_venta || prod.precio || 0);
       const totalItem = precioUnit * cant;
 
       // Detalle de venta
