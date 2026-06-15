@@ -25,7 +25,7 @@ const registrarVentaReal = async (req, res) => {
     const calculadoIva = Math.round(calculadoSubtotal * 0.19);
     const calculadoTotal = calculadoSubtotal + calculadoIva;
 
-    // 2. Insertar Encabezado de Venta
+    // 2. Insertar Encabezado de Venta (Estructura segura con total)
     const queryVenta = `
       INSERT INTO ventas (usuario_id, cliente_id, total, metodo_pago, estado)
       VALUES ($1, $2, $3, $4, 'completada')
@@ -40,17 +40,18 @@ const registrarVentaReal = async (req, res) => {
     
     const ventaId = ventaRes.rows[0].id;
 
-    // 3. Registrar el desglose (Removida columna conflictiva total_item) y DESCONTAR EL STOCK de Azure
+    // 3. Registrar el desglose insertando el 'subtotal' por cada producto y DESCONTAR EL STOCK
     for (const prod of productos) {
       const idProd = prod.id;
       const cant = Number(prod.cantidadActiva || prod.cantidad || 1);
       const precioUnit = Number(prod.precio_venta || prod.precio || 0);
+      const subtotalItem = precioUnit * cant; // Este es el valor que la restricción exige
 
-      // Detalle de venta - Columnas seguras estándar
+      // Detalle de venta - Se añade la columna subtotal requerida por tu DDL
       await client.query(`
-        INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario)
-        VALUES ($1, $2, $3, $4)
-      `, [ventaId, idProd, cant, precioUnit]);
+        INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [ventaId, idProd, cant, precioUnit, subtotalItem]);
 
       // Restar stock físico
       await client.query(`
@@ -60,7 +61,7 @@ const registrarVentaReal = async (req, res) => {
       `, [cant, idProd]);
     }
 
-    await client.query('COMMIT'); // Guardado total e indestructible en Azure
+    await client.query('COMMIT'); // Guardado exitoso en Azure
     return res.status(201).json({ 
       message: 'Venta procesada con éxito. Stock descontado en Azure.', 
       venta: ventaRes.rows[0] 
