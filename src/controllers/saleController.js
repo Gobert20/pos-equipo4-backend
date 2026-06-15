@@ -14,7 +14,7 @@ const registrarVentaReal = async (req, res) => {
 
     await client.query('BEGIN'); // Inicio de la transacción SQL
 
-    // 1. Calcular Totales (Con el IVA del 19% chileno)
+    // 1. Calcular el Total (Con el IVA del 19% chileno incluido)
     let calculadoSubtotal = 0;
     productos.forEach(p => {
       const precio = Number(p.precio_venta || p.precio || 0);
@@ -25,17 +25,15 @@ const registrarVentaReal = async (req, res) => {
     const calculadoIva = Math.round(calculadoSubtotal * 0.19);
     const calculadoTotal = calculadoSubtotal + calculadoIva;
 
-    // 2. Insertar Encabezado de Venta (Columnas exactas de tu DDL)
+    // 2. Insertar Encabezado de Venta (Removidas columnas conflictivas subtotal e iva)
     const queryVenta = `
-      INSERT INTO ventas (usuario_id, cliente_id, subtotal, iva, total, metodo_pago, estado)
-      VALUES ($1, $2, $3, $4, $5, $6, 'completada')
+      INSERT INTO ventas (usuario_id, cliente_id, total, metodo_pago, estado)
+      VALUES ($1, $2, $3, $4, 'completada')
       RETURNING *
     `;
     const ventaRes = await client.query(queryVenta, [
       usuario_id || null, 
       cliente_id || null,  
-      calculadoSubtotal,
-      calculadoIva,
       calculadoTotal,
       metodo_pago || 'efectivo'
     ]);
